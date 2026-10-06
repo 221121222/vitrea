@@ -182,17 +182,6 @@ xcodegen generate
 └── README.md
 ```
 
-## 贡献者 / Contributors
-
-本项目由两位开发者共同研发：
-
-| 贡献者 | 角色 | GitHub |
-| :--- | :--- | :--- |
-| **矜火** | 构想与 Bug 修复 | [@ksjinhuo](https://github.com/ksjinhuo) |
-| **Lucky** | 制作与构建 · 项目发起人 | — |
-
-欢迎通过 Issue / PR 参与共建，详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
-
 ## 致谢 / Acknowledgements
 
 - **[AirCard-iOS](https://github.com/Mak5er/AirCard-iOS)** —— Vitrea 的写入链路与 `AirliftFFI` 源自该项目（MIT），感谢原作者 **[@mak5er](https://github.com/mak5er)** 与 **[@merybist](https://github.com/merybist)** 的开源工作。
