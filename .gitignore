@@ -13,6 +13,11 @@ rust-core/target/
 # XCFramework (rebuilt by build-ios.sh)
 AirliftFFI.xcframework/
 
+# 本地素材镜像（~137MB，不参与 App 构建）
+# App 运行时通过 StickerService 从 https://cardart.cc/maker/ 在线加载，
+# 这里只是开发期的素材副本，无需进仓库。
+ios-app/Resources/Stickers/
+
 # Package outputs
 *.ipa
 DerivedData/

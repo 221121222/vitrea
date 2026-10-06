@@ -153,8 +153,10 @@ xcodegen generate
 │   ├── Services/                # 网络 / 写入 / 缓存 / 渲染 / 配对服务
 │   ├── Views/                   # 全部界面（卡面库、编辑器、裁切、写入、作者页…）
 │   ├── Resources/
-│   │   ├── Manifests/           # 素材与贴纸清单 JSON
-│   │   └── credits/             # 作者头像
+│   │   ├── Manifests/           # 素材与贴纸清单 JSON（嵌入 App）
+│   │   └── credits/             # 作者头像（嵌入 App）
+│   │   # Stickers/ 为 ~137MB 本地素材镜像，未纳入仓库；
+│   │   # App 运行时由 StickerService 从 https://cardart.cc/maker/ 在线加载
 │   ├── Assets.xcassets/         # App 图标
 │   ├── Models.swift             # 数据模型
 │   └── Info.plist               # 权限与 Bonjour 声明
