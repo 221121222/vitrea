@@ -5,7 +5,7 @@
 **发布日期**：2026-10-06
 **构建号**：1.0.0
 **Bundle ID**：`cc.cardart.workshop`
-**最低系统**：iOS 18.0
+**支持系统**：iOS 26.0 – 26.6，iOS 27 beta 1 – beta 4
 
 ### 新增 / Added
 
@@ -33,7 +33,7 @@
 ### 已知问题 / Known Issues
 
 - Release 中的 IPA 为**未签名包**，需自行重签，详见 [docs/INSTALL.md](docs/INSTALL.md)。
-- 写入功能依赖未公开的系统接口，仅在 iOS 18 上验证通过；系统升级后可能失效。
+- 写入功能依赖未公开的系统接口，仅在 **iOS 26.0 – 26.6 / iOS 27 beta 1 – beta 4** 上验证通过；其他版本不受支持，系统升级后可能失效。
 - 模拟器不支持（`AirliftFFI` 为 arm64，且写入依赖真机系统服务）。
 
 ### 签名与安装

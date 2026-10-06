@@ -11,7 +11,7 @@ Release 页面提供的 `Vitrea.ipa` 是**未签名包**。它在打包时已剥
 | 项目 | 说明 |
 | --- | --- |
 | Bundle ID | `cc.cardart.workshop`（重签时可自定义，但需保证唯一） |
-| 最低系统 | iOS 18.0 |
+| 支持系统 | **iOS 26.0 – 26.6**，或 **iOS 27 beta 1 – beta 4** |
 | 设备 | 仅 **arm64 真机**，不支持模拟器 |
 | 必要依赖 | [LocalDevVPN](https://github.com/SiamSadik/LocalDevVPN)，用于建立 `10.7.0.1` 本地回环隧道 |
 
@@ -42,8 +42,10 @@ Release 页面提供的 `Vitrea.ipa` 是**未签名包**。它在打包时已剥
 
 ## 3. 越狱 / TrollStore 环境
 
-- **TrollStore**（仅支持存在 CoreTrust 漏洞的系统版本）：直接把 `Vitrea.ipa` 分享给 TrollStore 打开即可永久安装，无需重签。
-- **越狱设备**：可用 `AppSync` 或 `Filza` 直接安装 IPA。
+> [!NOTE]
+> **TrollStore 不适用**：它最高只支持到 iOS 17.x，而 Vitrea 需要 **iOS 26.0+**，无法安装。
+
+- **越狱设备**：可用 `AppSync` 或 `Filza` 直接安装 IPA（系统版本需在支持范围内）。
 
 ## 4. 爱思助手 / ESign 等国产工具
 

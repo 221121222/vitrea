@@ -9,7 +9,7 @@
 | Xcode | 16+ |
 | XcodeGen | `brew install xcodegen` |
 | Rust | `rustup` + `aarch64-apple-ios`、`aarch64-apple-ios-sim` target |
-| 设备 | iOS 18.0+ 真机（模拟器不支持写入） |
+| 设备 | **iOS 26.0 – 26.6** 或 **iOS 27 beta 1 – beta 4** 真机（模拟器不支持写入） |
 
 ## 本地构建
 

@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Platform-iOS%2018%2B-blue?style=flat-square&logo=apple" alt="Platform" />
+  <img src="https://img.shields.io/badge/iOS-26.0%20~%2026.6%20%7C%2027.0%20b1~b4-blue?style=flat-square&logo=apple" alt="iOS 26.0–26.6 | 27.0 b1–b4" />
   <img src="https://img.shields.io/badge/Swift-5.0-orange?style=flat-square&logo=swift" alt="Swift" />
   <img src="https://img.shields.io/badge/Rust-FFI%20Core-red?style=flat-square&logo=rust" alt="Rust" />
   <img src="https://img.shields.io/badge/UI-Liquid%20Glass-8b5cf6?style=flat-square" alt="Liquid Glass" />
@@ -31,7 +31,16 @@
 整个写入过程**在设备上完成**：App 通过本地回环隧道（`10.7.0.1` / `127.0.0.1`，由 LocalDevVPN 提供）与本机系统服务通信，实际的文件操作由 `AirliftFFI`（`rust-core/`）负责。全程**不越狱、不访问 Secure Enclave、不读取或修改任何支付凭据**，只替换 Wallet 的图像缓存文件。
 
 > [!IMPORTANT]
-> **兼容性**：Vitrea 需要 **iOS 18.0 或更高版本**，且必须配合 [LocalDevVPN](https://github.com/SiamSadik/LocalDevVPN) 建立本地回环隧道才能完成写入。
+> **兼容性**：Vitrea 支持 **iOS 26.0 – 26.6** 与 **iOS 27 beta 1 – beta 4**，且必须配合 [LocalDevVPN](https://github.com/SiamSadik/LocalDevVPN) 建立本地回环隧道才能完成写入。
+
+### 兼容性 / Compatibility
+
+| iOS 版本 | 状态 | 说明 |
+| :--- | :--- | :--- |
+| **iOS 26.0 – 26.6** | ✅ 支持 | 已验证可正常写入 |
+| **iOS 27 beta 1 – beta 4** | ✅ 支持 | 已验证可正常写入 |
+| iOS 18 – 25.x | ❌ 不支持 | 未适配 |
+| iOS 27 beta 5 及更高 | ❌ 不支持 | 系统已封堵相关接口 |
 
 ## 功能特性 / Features
 
@@ -83,7 +92,7 @@
 
 | 项目 | 要求 |
 | --- | --- |
-| 设备系统 | **iOS 18.0+**（真机，不支持模拟器） |
+| 设备系统 | **iOS 26.0 – 26.6**，或 **iOS 27 beta 1 – beta 4**（真机，不支持模拟器） |
 | 架构 | `arm64`（模拟器仅 `arm64`，已排除 `x86_64`） |
 | 开发工具 | Xcode 16+ / Swift 5.0 |
 | 工程生成 | [XcodeGen](https://github.com/yonaskolb/XcodeGen)（`brew install xcodegen`） |
@@ -96,7 +105,7 @@
 
 1. 前往本仓库的 [**Releases**](../../releases/latest) 页面，下载最新的 `Vitrea.ipa`。
 2. 因为 Release 中的 IPA 是**未签名**包，需要用自签工具重签后再安装，详见 **[docs/INSTALL.md](docs/INSTALL.md)**。
-3. 常用自签工具：**AltStore / SideStore / Sideloadly / ESign / TrollStore（iOS 17 以下）/ 爱思助手**。
+3. 常用自签工具：**AltStore / SideStore / Sideloadly / ESign / 爱思助手**。
 4. 安装完成后，按 [docs/INSTALL.md](docs/INSTALL.md) 的说明安装并启动 **LocalDevVPN**，建立回环隧道。
 
 > [!WARNING]
