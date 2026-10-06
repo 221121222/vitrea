@@ -177,22 +177,10 @@ xcodegen generate
 
 本项目由两位开发者共同研发：
 
-<table>
-  <tr>
-    <td align="center" width="50%">
-      <img src="ios-app/Resources/credits/jinhuo.jpg" width="80" height="80" alt="矜火" style="border-radius: 50%;" /><br/>
-      <b>矜火</b><br/>
-      <sub>构想与 Bug 修复</sub><br/>
-      <a href="https://github.com/ksjinhuo">@ksjinhuo</a>
-    </td>
-    <td align="center" width="50%">
-      <img src="ios-app/Resources/credits/lucky.jpg" width="80" height="80" alt="Lucky" style="border-radius: 50%;" /><br/>
-      <b>Lucky</b><br/>
-      <sub>制作与构建</sub><br/>
-      <sub>项目发起人</sub>
-    </td>
-  </tr>
-</table>
+| 贡献者 | 角色 | GitHub |
+| :--- | :--- | :--- |
+| **矜火** | 构想与 Bug 修复 | [@ksjinhuo](https://github.com/ksjinhuo) |
+| **Lucky** | 制作与构建 · 项目发起人 | — |
 
 欢迎通过 Issue / PR 参与共建，详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
