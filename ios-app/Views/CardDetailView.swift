@@ -25,9 +25,30 @@ struct CardDetailView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(card.displayTitle)
                             .font(.title3.weight(.semibold))
-                        Text(card.authorName)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+
+                        // 详情页原本作者只是纯文本，完全点不进去；这里补成和列表一致的作者入口
+                        if let handle = card.author?.handle, !handle.isEmpty {
+                            NavigationLink {
+                                AuthorWorksView(handle: handle, displayName: card.authorName)
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "person.fill")
+                                        .font(.system(size: 11))
+                                    Text(card.authorName)
+                                        .font(.subheadline)
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 10, weight: .semibold))
+                                        .foregroundColor(.accentColor)
+                                }
+                                .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("查看 \(card.authorName) 的作品")
+                        } else {
+                            Text(card.authorName)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 

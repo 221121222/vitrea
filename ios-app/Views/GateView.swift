@@ -2,7 +2,7 @@
 //  GateView.swift
 //  Vitrea
 //
-//  全屏闸门：① 连接 LocalDevVPN → ② 配对 → 放行。
+//  全屏闸门：① 建立回环隧道（优先内置，退路 LocalDevVPN）→ ② 配对 → 放行。
 //  按 iOS 版本只展示当前适用的配对路线，减少操作步数。
 //
 
@@ -60,46 +60,57 @@ struct GateView: View {
     }
 }
 
-// MARK: - Step 1：连接 LocalDevVPN
+// MARK: - Step 1：建立回环隧道
 
 struct VPNGateStep: View {
     @EnvironmentObject var model: AppModel
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
 
+    @ObservedObject private var tunnel = LoopbackTunnelService.shared
+
     @State private var waiting = false
     @State private var elapsed = 0
     @State private var pollTask: Task<Void, Never>?
+    @State private var prepared = false
 
     private let vpnURL = URL(string: "localdevvpn://")!
 
     var body: some View {
         VStack(spacing: 14) {
-            Text("连接 LocalDevVPN 以建立本地隧道，卡面才能写入设备。")
+            Text(headline)
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
 
+            if tunnel.availability.isReady {
+                builtInControls
+            } else {
+                externalControls
+            }
+
             if waiting {
                 ProgressView("等待隧道连接… \(elapsed)s")
                     .font(.caption)
-            } else {
-                Button {
-                    openURL(vpnURL)
-                    beginPolling()
-                } label: {
-                    Label("打开 LocalDevVPN", systemImage: "bolt.horizontal.fill")
-                        .fontWeight(.semibold)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(.blue, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .foregroundColor(.white)
-                }
-                .buttonStyle(.plain)
+            }
+
+            if let error = tunnel.lastError, tunnel.availability.isReady {
+                Text(error)
+                    .font(.caption2)
+                    .foregroundColor(.orange)
+                    .multilineTextAlignment(.center)
             }
         }
-        .onAppear {
-            if WriteEngine.shared.isTunnelUp { model.advanceGate(to: .pairing) }
+        .task {
+            guard !prepared else { return }
+            prepared = true
+            await tunnel.prepare()
+            if WriteEngine.shared.isTunnelUp {
+                model.advanceGate(to: .pairing)
+            } else if tunnel.availability.isReady {
+                // 内置回环可用就直接拉起来，省掉用户一次点击。
+                await startBuiltIn()
+            }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active, waiting, WriteEngine.shared.isTunnelUp {
@@ -107,6 +118,87 @@ struct VPNGateStep: View {
             }
         }
         .onDisappear { pollTask?.cancel() }
+    }
+
+    // MARK: 文案
+
+    private var headline: String {
+        if tunnel.availability.isReady {
+            return "Vitrea 内置回环：在本机建立一条能连回自己的隧道，卡面才能写入设备。"
+        }
+        switch tunnel.availability {
+        case .unsupported:
+            return "内置回环不可用（当前签名未包含 NetworkExtension 权限）。请改用 LocalDevVPN。"
+        case .failed(let reason):
+            return "内置回环启动失败：\(reason)\n可改用 LocalDevVPN。"
+        default:
+            return "正在检查回环隧道…"
+        }
+    }
+
+    // MARK: 内置回环按钮
+
+    @ViewBuilder
+    private var builtInControls: some View {
+        if tunnel.isConnected || WriteEngine.shared.isTunnelUp {
+            Label("隧道已连接", systemImage: "checkmark.circle.fill")
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.green)
+        } else {
+            Button {
+                Task { await startBuiltIn() }
+            } label: {
+                Label(tunnel.isBusy ? "正在连接…" : "启动内置回环",
+                      systemImage: "bolt.horizontal.fill")
+                    .fontWeight(.semibold)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(.blue, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .foregroundColor(.white)
+            }
+            .buttonStyle(.plain)
+            .disabled(tunnel.isBusy)
+
+            Button {
+                openURL(vpnURL)
+                beginPolling()
+            } label: {
+                Text("改用 LocalDevVPN")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    // MARK: 外置 LocalDevVPN 按钮（内置不可用时的退路）
+
+    @ViewBuilder
+    private var externalControls: some View {
+        Button {
+            openURL(vpnURL)
+            beginPolling()
+        } label: {
+            Label("打开 LocalDevVPN", systemImage: "bolt.horizontal.fill")
+                .fontWeight(.semibold)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(.blue, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .foregroundColor(.white)
+        }
+        .buttonStyle(.plain)
+
+        Text("也可以从 App Store 安装 LocalDevVPN 后回到本页。")
+            .font(.caption2)
+            .foregroundColor(.secondary)
+            .multilineTextAlignment(.center)
+    }
+
+    // MARK: 行为
+
+    private func startBuiltIn() async {
+        _ = await tunnel.activate()
+        beginPolling()
     }
 
     private func beginPolling() {
@@ -118,8 +210,12 @@ struct VPNGateStep: View {
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
                 if Task.isCancelled { return }
                 elapsed += 2
+                await tunnel.refreshStatus()
                 if WriteEngine.shared.isTunnelUp {
-                    await MainActor.run { model.advanceGate(to: .pairing) }
+                    await MainActor.run {
+                        waiting = false
+                        model.advanceGate(to: .pairing)
+                    }
                     return
                 }
                 if elapsed >= 90 {
@@ -143,6 +239,9 @@ struct PairingGateStep: View {
 
     var body: some View {
         VStack(spacing: 16) {
+            // 完整配对方法（含「设置 → 隐私与安全性 → 开发者」开启开发者模式）
+            setupGuide
+
             if isNewOS {
                 Text("点击下方按钮，按提示在「设置」中完成本机配对。")
                     .font(.subheadline)
@@ -212,6 +311,40 @@ struct PairingGateStep: View {
 
     private func checkPaired() {
         if WriteEngine.shared.isPaired { finish() }
+    }
+
+    // MARK: 完整配对方法（含开发者模式）
+
+    private var setupGuide: some View {
+        GlassCard(padding: 14, cornerRadius: 16) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Image(systemName: "checklist")
+                        .foregroundColor(.blue)
+                    Text("完整配对方法").font(.subheadline.weight(.semibold))
+                }
+
+                guideRow(n: 1, text: "先开启开发者模式：打开 iPhone 的「设置」→「隐私与安全性」→「开发者」，打开「开发者模式」，按提示重启设备。")
+                guideRow(n: 2, text: isNewOS
+                    ? "在下方点「与此 iPhone 配对」，系统跳到「设置」开启本机配对并输入 PIN，自动回到本 App 即完成。"
+                    : "从 SideStore / AltStore 等导出 .mobiledevicepairing 配对文件，点下方「导入配对文件」选中它。")
+                guideRow(n: 3, text: "配对成功且隧道保持连接后，即可开始写入卡面。")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func guideRow(n: Int, text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text("\(n)")
+                .font(.caption.weight(.bold))
+                .foregroundColor(.blue)
+                .frame(width: 16, alignment: .leading)
+            Text(text)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private func finish() {

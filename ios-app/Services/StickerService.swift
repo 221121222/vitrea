@@ -27,9 +27,8 @@ final class StickerService {
 
     private let session: URLSession = {
         let cfg = URLSessionConfiguration.default
-        cfg.urlCache = URLCache(memoryCapacity: 32 * 1024 * 1024,
-                                diskCapacity: 256 * 1024 * 1024,
-                                diskPath: "Stickers")
+        // 与清理服务共用同一实例：CleanerService 需要拿到它才能清空响应与磁盘
+        cfg.urlCache = AppHTTPCache.stickers
         cfg.requestCachePolicy = .returnCacheDataElseLoad
         cfg.timeoutIntervalForRequest = 25
         cfg.httpMaximumConnectionsPerHost = 8
@@ -120,5 +119,10 @@ extension StickerService {
     /// 已栅格化的贴纸（用于视图重建时秒显）
     func cached(_ file: String) -> UIImage? {
         rasterCache.object(forKey: file as NSString)
+    }
+
+    /// 释放栅格化内存缓存（清理页调用；磁盘缓存由 CleanerService 处理）
+    func purgeMemory() {
+        rasterCache.removeAllObjects()
     }
 }

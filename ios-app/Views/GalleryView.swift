@@ -10,9 +10,28 @@ import SwiftUI
 
 struct GalleryView: View {
     @EnvironmentObject var model: AppModel
-    @State private var editingCard: GalleryCard?
-    /// 新建卡面（制作）全屏页
-    @State private var showNewCard = false
+
+    /// 编辑器入口：新建 / 编辑，统一由**一个** fullScreenCover 承载。
+    ///
+    /// 这里踩过一个坑：原先在同一个视图上叠了两个 fullScreenCover
+    /// （`item: $editingCard` + `isPresented: $showNewCard`），
+    /// 而 SwiftUI 一个视图只能稳定托管一个 presentation ——
+    /// 结果「制作卡面」那个全屏页虽然能打开，但**关闭叉点了没反应**
+    /// （dismiss 绑定的那个 binding 已经被另一个 cover 抢掉了）。
+    /// 合并成一个 item 驱动的 cover 就好了。
+    private enum EditorRoute: Identifiable {
+        case create
+        case edit(GalleryCard)
+
+        var id: String {
+            switch self {
+            case .create:         return "create"
+            case .edit(let card): return "edit-\(card.id)"
+            }
+        }
+    }
+
+    @State private var editorRoute: EditorRoute?
     /// nil = 全部；否则为 /explore 的筛选串（issuerKind=… 或 type=payment&network=…）
     @State private var selectedFilter: String? = nil
     @State private var showStatusMenu = false
@@ -54,8 +73,16 @@ struct GalleryView: View {
                 .padding(.vertical, 10)
             }
             .refreshable {
-                if model.searchMode { model.performSearch() }
-                else { await model.refreshFeed() }
+                if model.searchMode {
+                    // 分类浏览时下拉刷新要重新拉同一类，不能去跑空关键词搜索
+                    if model.exploreMode, let filter = model.exploreFilter {
+                        model.loadExplore(filter: filter)
+                    } else {
+                        model.performSearch()
+                    }
+                } else {
+                    await model.refreshFeed()
+                }
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -67,19 +94,29 @@ struct GalleryView: View {
                         .font(.headline.weight(.semibold))
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { showNewCard = true } label: {
-                        Image(systemName: "wand.and.stars")
-                            .font(.body.weight(.semibold))
+                    Button { editorRoute = .create } label: {
+                        // 图标 + 文字：单图标不够显眼，加上「制作」二字并给一个实心底色
+                        HStack(spacing: 4) {
+                            Image(systemName: "wand.and.stars")
+                            Text("制作")
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.accentColor, in: Capsule())
                     }
                     .accessibilityLabel("制作卡面")
                 }
             }
         }
-        .fullScreenCover(item: $editingCard) { card in
-            EditorView(editing: card, onDismiss: { editingCard = nil })
-        }
-        .fullScreenCover(isPresented: $showNewCard) {
-            EditorView(editing: nil, onDismiss: { showNewCard = false })
+        .fullScreenCover(item: $editorRoute) { route in
+            switch route {
+            case .create:
+                EditorView(editing: nil, onDismiss: { editorRoute = nil })
+            case .edit(let card):
+                EditorView(editing: card, onDismiss: { editorRoute = nil })
+            }
         }
         .confirmationDialog("连接设置", isPresented: $showStatusMenu, titleVisibility: .visible) {
             Button("重新检查连接") { model.relock(to: .vpn) }
@@ -168,10 +205,18 @@ struct GalleryView: View {
                 .font(.subheadline)
                 .submitLabel(.search)
                 .onSubmit { selectedFilter = nil; model.performSearch() }
-            if model.searchMode {
+            // 只在**关键词搜索**时给清除按钮。
+            // 点「交通卡 / 身份证 / 银行卡」只是切分类浏览，搜索框右侧不该冒出这个叉 ——
+            // 取消分类浏览请点最左边的「全部」。
+            if model.searchMode && !model.exploreMode {
                 Button { selectedFilter = nil; model.exitSearch() } label: {
-                    Image(systemName: "xmark.circle.fill").foregroundColor(.secondary)
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.body)
+                        .foregroundColor(.secondary)
                 }
+                // .plain 才能压住默认按钮样式对图标的强调色着色，保持灰色
+                .buttonStyle(.plain)
+                .accessibilityLabel("退出搜索")
             }
         }
         .padding(.horizontal, 12).padding(.vertical, 10)
@@ -247,7 +292,7 @@ struct GalleryView: View {
     }
 
     private func cardCell(_ card: GalleryCard, onLast: @escaping () -> Void) -> some View {
-        GalleryCardItem(card: card, onEdit: { editingCard = card })
+        GalleryCardItem(card: card, onEdit: { editorRoute = .edit(card) })
             .onAppear(perform: onLast)
     }
 
@@ -328,15 +373,20 @@ struct GalleryCardItem: View {
                 NavigationLink {
                     AuthorWorksView(handle: handle, displayName: card.authorName)
                 } label: {
+                    // 作者是可点进去的，但光看文字看不出来 —— 后面补一个小小的向右箭头
                     HStack(spacing: 3) {
                         Image(systemName: "person.fill").font(.system(size: 9))
                         Text(card.authorName)
                             .font(.caption2)
                             .lineLimit(1)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundColor(.accentColor)
                     }
                     .foregroundColor(.secondary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("查看 \(card.authorName) 的作品")
             } else {
                 Text(card.authorName)
                     .font(.caption2)

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct WriteSheet: View {
     let context: WriteContext
@@ -17,11 +18,19 @@ struct WriteSheet: View {
     }
 
     @State private var phase: Phase = .prepare
-    @State private var progress: Double = 0
+    /// 进度显示层：单调、每次只 +1%
+    @StateObject private var progressModel = WriteProgressModel()
     @State private var liveLogs: [String] = []
     @State private var errors: [(cardId: String, kind: WriteErrorKind)] = []
     @State private var showLogs = false
     @State private var spinnerAngle: Double = 0
+    /// 快捷指令「随机卡面」触发：进面板后自动开始写入并退回后台（只跑一次）
+    @State private var didAutoStart = false
+
+    // 批量上下文（给实时活动用）
+    @State private var totalCount = 0
+    @State private var doneCount = 0
+    @State private var failedCount = 0
 
     var body: some View {
         ZStack {
@@ -35,6 +44,34 @@ struct WriteSheet: View {
                 .padding(20)
             }
         }
+        // 写入进行中不允许下滑关闭：避免写到一半界面消失（进度仍在灵动岛可见）
+        .interactiveDismissDisabled(isRunning)
+        // 快捷指令「随机卡面」：自动选卡 → 开始写入 → 退回后台（写入靠 BackgroundKeeper 续命）
+        .task {
+            guard context.autoStart, !didAutoStart else { return }
+            didAutoStart = true
+            // 没识别到卡就交还给用户手动选，不强行后台
+            guard !model.walletCards.isEmpty else { return }
+            model.selectAllWalletCards(true)
+            Task { await runWrite() }
+            // 等进入「进行中」阶段再退回后台，灵动岛进度才能在后台继续走
+            for _ in 0..<60 {
+                if case .running = phase { break }
+                try? await Task.sleep(nanoseconds: 50_000_000)
+            }
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            backgroundApp()
+        }
+    }
+
+    /// 把 App 退到后台（私有 API，仅侧载/自签可用；App Store 构建不要用）
+    private func backgroundApp() {
+        UIApplication.shared.perform(Selector(("suspend")))
+    }
+
+    private var isRunning: Bool {
+        if case .running = phase { return true }
+        return false
     }
 
     // MARK: 头部
@@ -47,10 +84,8 @@ struct WriteSheet: View {
                     .foregroundColor(.secondary)
             }
             Spacer()
-            Button { dismiss() } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.title3).foregroundColor(.secondary)
-            }
+            // 不设关闭按钮：面板以 .sheet 呈现，下滑即可退出；
+            // 写入完成后另有「完成」按钮。
         }
     }
 
@@ -176,7 +211,7 @@ struct WriteSheet: View {
                     .stroke(Color.primary.opacity(0.12), lineWidth: 6)
                 // 进度弧（渐变描边 + 旋转）
                 Circle()
-                    .trim(from: 0, to: max(progress, 0.02))
+                    .trim(from: 0, to: max(Double(progressModel.percent) / 100, 0.02))
                     .stroke(
                         AngularGradient(
                             gradient: Gradient(colors: [Color.accentColor,
@@ -192,17 +227,34 @@ struct WriteSheet: View {
                             spinnerAngle = 360
                         }
                     }
-                // 中心进度文字（字号调小，便于与进度环协调）
+                // 中心进度文字
                 VStack(spacing: 2) {
-                    Text("\(Int(progress * 100))%")
+                    Text("\(progressModel.percent)%")
                         .font(.headline.bold().monospacedDigit())
-                    Text("写入中…")
+                        // 数字用等宽 + 固定内容过渡，避免逐帧闪动
+                        .contentTransition(.numericText())
+                    Text(progressModel.stage)
                         .font(.caption2)
                         .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 6)
                 }
             }
             .frame(width: 132, height: 132)
             .padding(.vertical, 4)
+
+            if totalCount > 1 {
+                Text("第 \(min(doneCount + 1, totalCount))/\(totalCount) 张" +
+                     (failedCount > 0 ? " · 失败 \(failedCount)" : ""))
+                    .font(.caption.monospacedDigit())
+                    .foregroundColor(.secondary)
+            }
+
+            // 保活提示：告诉用户可以放心切后台
+            Label("可切到后台，写入会继续", systemImage: "arrow.up.forward.app")
+                .font(.caption2)
+                .foregroundColor(.secondary)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 4) {
@@ -212,7 +264,7 @@ struct WriteSheet: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxHeight: 120)
+            .frame(maxHeight: 110)
         }
     }
 
@@ -263,6 +315,11 @@ struct WriteSheet: View {
     }
 
     // MARK: 执行写入
+    //
+    // 三件事一起做：
+    //   ① 进度：WriteEngine 从 Rust 日志解析出**真实**文件级进度 → WriteProgressModel 平滑成 1% 递增
+    //   ② 后台：BackgroundWriteKeeper 保活（beginBackgroundTask + 静音音频），切后台不中断
+    //   ③ 灵动岛：WriteActivityController 把百分比同步到实时活动
 
     private func runWrite() async {
         let targets = model.walletCards.filter(\.isSelected)
@@ -275,21 +332,38 @@ struct WriteSheet: View {
         liveLogs.removeAll()
         errors.removeAll()
 
-        let items = targets.map { (cardId: $0.id, image: context.image) }
+        totalCount = targets.count
+        doneCount = 0
+        failedCount = 0
+
+        // ② 保活：从这一刻起，切到后台也会继续写
+        BackgroundKeeper.shared.begin(reason: "card-write")
+
+        // ③ 实时活动：先在灵动岛占位，随后由进度回调刷新
+        WriteActivityController.shared.start(cardLabel: targets.first?.title ?? "卡面",
+                                             total: targets.count)
+
+        // ① 进度显示层
+        progressModel.begin { percent, stage in
+            WriteActivityController.shared.update(percent: percent, stage: stage)
+        }
+        progressModel.setTarget(0, stage: "准备中…")
+
+        let items = targets.map { (cardId: $0.id, label: $0.title, image: context.image) }
+
         let results = await WriteEngine.shared.batchWrite(
             items: items,
             onLog: { line in
                 // 回调来自后台线程，必须回主线程改 @State
                 Task { @MainActor in liveLogs.append(line) }
             },
-            onProgress: { p, done, total in
-                // 单卡时 p 未走满 1.0，按 (卡序 + 卡内进度) 归一化
-                let overall = (Double(done - 1) + p) / Double(max(total, 1))
+            onProgress: { p in
                 Task { @MainActor in
-                    // 平滑快速地爬升，数字按 1% 细步递进，不再大跳
-                    withAnimation(.easeOut(duration: 0.18)) {
-                        progress = min(max(overall, 0), 1)
-                    }
+                    doneCount = p.done
+                    failedCount = p.failed
+                    WriteActivityController.shared.setContext(
+                        cardLabel: p.cardLabel, done: p.done, failed: p.failed, total: p.total)
+                    progressModel.setTarget(p.fraction, stage: p.stage)
                 }
             }
         )
@@ -297,11 +371,21 @@ struct WriteSheet: View {
         let failedItems = results.filter { $0.error != nil }
         errors = failedItems.map { (cardId: $0.cardId, kind: $0.error!) }
 
+        // 让显示值真正走满 100%，再收尾（否则会停在半路）
+        progressModel.finish(stage: failedItems.isEmpty ? "写入完成" : "写入结束")
+        await progressModel.waitUntilComplete()
+
+        WriteActivityController.shared.end(success: results.count - failedItems.count,
+                                           failed: failedItems.count)
+        BackgroundKeeper.shared.end()
+
         withAnimation(.spring(response: GlassTheme.morphResponse,
                               dampingFraction: GlassTheme.morphDamping)) {
             phase = .done(success: results.count - failedItems.count,
                           failed: failedItems.count)
         }
+        // 快捷指令触发的自动写入：写完后清掉上下文，避免下次打开 App 又弹出这张已完成的结果
+        if context.autoStart { model.writeContext = nil }
         model.refreshLogs()
     }
 }

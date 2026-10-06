@@ -31,9 +31,8 @@ final class ImageCacheStore {
         cfg.timeoutIntervalForRequest = 20
         cfg.waitsForConnectivity = false
         cfg.requestCachePolicy = .returnCacheDataElseLoad
-        cfg.urlCache = URLCache(memoryCapacity: 48 * 1024 * 1024,
-                                diskCapacity: 256 * 1024 * 1024,
-                                diskPath: "CardArtHTTP")
+        // 与清理服务共用同一实例：CleanerService 需要拿到它才能清空响应与磁盘
+        cfg.urlCache = AppHTTPCache.cardArt
         cfg.httpMaximumConnectionsPerHost = 8
         return URLSession(configuration: cfg)
     }()
@@ -52,6 +51,9 @@ final class ImageCacheStore {
             name: UIApplication.didReceiveMemoryWarningNotification, object: nil
         )
     }
+
+    /// 磁盘缓存目录（供 CleanerService 定位与统计）
+    var diskCacheURL: URL { diskURL }
 
     @objc func purgeMemory() {
         memory.removeAllObjects()

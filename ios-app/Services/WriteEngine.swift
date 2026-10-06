@@ -54,6 +54,124 @@ struct WriteLogEntry: Identifiable, Codable {
     let errorKind: String?
 }
 
+// MARK: - 写入进度
+
+/// 一次批量写入的进度快照（交给 UI / 实时活动）
+struct WriteBatchProgress {
+    /// 总体进度 0…1
+    let fraction: Double
+    /// 阶段文案
+    let stage: String
+    /// 已完成张数 / 总张数
+    let done: Int
+    let total: Int
+    /// 失败张数
+    let failed: Int
+    /// 当前正在写的卡（展示用短标签）
+    let cardLabel: String
+}
+
+/// 单张卡的进度回调（fraction + 阶段文案）。
+/// 约定：WriteEngine 内部会切回主线程再调用，消费方可以直接改 UI 状态。
+typealias WriteProgressHandler = (Double, String) -> Void
+
+// MARK: - Rust 日志 → 文件级进度
+//
+// `al_exploit_write_dir` 是**一次阻塞调用**，没有进度回调参数；但它会把过程写进日志回调。
+// 下面这些格式来自 `rust-core/src/exploit.rs` 的实际 logger.log 调用：
+//
+//   airlift: found 8 file(s) to write
+//   airlift: attempting fast atomic batch write for 8 file(s)...
+//   airlift: [3/8] writing 'x.png' (123456 bytes)...          ← 开始写第 3 个
+//   airlift: [3/8] 'x.png' written successfully ✅             ← 第 3 个写完（逐文件回退路径）
+//   airlift: starting com.apple.atc batch sync for 8 files...
+//   airlift: FileComplete sent [3/8]                           ← 第 3 个写完（ATC 批量路径）
+//   airlift: [batch 3/8] written -> x.png
+//   airlift: fast batch write succeeded for all 8 file(s) in 1 shot! ✅
+//   airlift: successfully batch-wrote 8 files in one shot! ✅
+//   airlift: successfully wrote 8 files to /var/mobile/...
+//
+// 解析这些行就能拿到**真实**的文件级进度，而不是靠猜。
+
+struct FFIProgressParser {
+
+    private(set) var total = 0
+    private(set) var completed = 0
+    private(set) var finished = false
+
+    /// 「已完成」关键词（出现在 [i/N] 行里即认为第 i 个已落盘）
+    private static let doneKeywords = [
+        "written successfully",
+        "written ->",
+        "filecomplete sent",
+    ]
+    /// 「开始写」关键词
+    private static let startKeywords = ["writing"]
+    /// 终态关键词
+    private static let terminalKeywords = [
+        "fast batch write succeeded",
+        "successfully batch-wrote",
+        "successfully wrote",
+    ]
+
+    /// 消费一行日志；返回 true 表示进度有变化
+    @discardableResult
+    mutating func consume(_ rawLine: String) -> Bool {
+        let line = rawLine.lowercased()
+        var changed = false
+
+        // ① 「[i/N]」或「[batch i/N]」形式的位置标记
+        if let (index, count) = Self.bracketCounts(line), count > 0 {
+            if count > total { total = count; changed = true }
+            if Self.doneKeywords.contains(where: line.contains) {
+                if index > completed { completed = index; changed = true }
+            } else if Self.startKeywords.contains(where: line.contains) {
+                // 开始写第 i 个 → 已完成 i-1
+                let doneBefore = max(0, index - 1)
+                if doneBefore > completed { completed = doneBefore; changed = true }
+            }
+        }
+
+        // ② 「found N file(s)」「for N file(s)」「N files」→ 总文件数
+        if line.contains("file"), let n = Self.countBeforeFileWord(line), n > total {
+            total = n
+            changed = true
+        }
+
+        // ③ 终态
+        if Self.terminalKeywords.contains(where: line.contains) {
+            if total > 0, completed < total { completed = total; changed = true }
+            if !finished { finished = true; changed = true }
+        }
+
+        return changed
+    }
+
+    /// 取 "[3/8]" / "[batch 3/8]" 里的 (3, 8)
+    private static func bracketCounts(_ line: String) -> (Int, Int)? {
+        guard let open = line.firstIndex(of: "["),
+              let close = line[open...].firstIndex(of: "]") else { return nil }
+        let inner = line[line.index(after: open)..<close]
+        let parts = inner.split(separator: "/")
+        guard parts.count == 2,
+              let a = trailingInt(parts[0]),
+              let b = trailingInt(parts[1]) else { return nil }
+        return (a, b)
+    }
+
+    /// 取 " file" 前面那个数字
+    private static func countBeforeFileWord(_ line: String) -> Int? {
+        guard let r = line.range(of: " file") else { return nil }
+        return trailingInt(line[line.startIndex..<r.lowerBound])
+    }
+
+    /// 取片段末尾的连续数字（`"batch 3"` → 3，`"8"` → 8）
+    private static func trailingInt(_ s: Substring) -> Int? {
+        let digits = s.reversed().prefix { $0.isNumber }.reversed()
+        return digits.isEmpty ? nil : Int(String(digits))
+    }
+}
+
 // MARK: - WriteEngine
 
 final class WriteEngine {
@@ -90,24 +208,48 @@ final class WriteEngine {
     }
 
     // MARK: 单卡写入
+    //
+    // 进度分段（单张卡内 0…1）：
+    //   0.02  检查连接
+    //   0.05  准备隧道
+    //   0.07→0.30  渲染卡面（纯 CPU）
+    //   0.30→0.36  落暂存目录
+    //   0.36→0.95  FFI 写入（**由 Rust 日志驱动真实文件级进度**）
+    //   0.95→0.99  刷新钱包缓存
+    //   1.00  完成
+
+    private enum Phase {
+        static let envStart      = 0.02
+        static let tunnelReady   = 0.05
+        static let renderStart   = 0.07
+        static let renderDone    = 0.30
+        static let staged        = 0.36
+        static let ffiStart      = 0.36
+        static let ffiEnd        = 0.95
+        static let invalidating  = 0.97
+        static let done          = 1.0
+    }
 
     /// - Throws: WriteErrorKind（四类之一）
     func writeCard(cardId: String, image: UIImage,
                    onLog: @escaping (String) -> Void,
-                   onProgress: @escaping (Double) -> Void) async throws {
+                   onProgress: @escaping WriteProgressHandler) async throws {
         if let env = checkEnvironment() {
             record(env.userMessage, errorKind: env)
             throw env
         }
-        syncHosts()
-        onProgress(0.1)
+        report(onProgress, Phase.envStart, "正在检查连接…")
 
+        syncHosts()
+        report(onProgress, Phase.tunnelReady, "正在准备隧道…")
+
+        report(onProgress, Phase.renderStart, "正在渲染卡面…")
         let skins = ImageEngine.prepareAllCardSkins(from: image)
         guard !skins.isEmpty else {
             record("卡面渲染失败", errorKind: .verifyFailed)
             throw WriteErrorKind.verifyFailed
         }
-        onProgress(0.3)
+        report(onProgress, Phase.renderDone, "卡面渲染完成")
 
         let stageDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("workshop_card_\(UUID().uuidString)", isDirectory: true)
@@ -116,12 +258,19 @@ final class WriteEngine {
             try? data.write(to: stageDir.appendingPathComponent(name))
         }
         defer { try? FileManager.default.removeItem(at: stageDir) }
+        report(onProgress, Phase.staged, "正在准备写入文件…")
 
         let target = "/var/mobile/Library/Passes/Cards/\(cardId).pkpass"
         onLog("正在写入 \(cardId.prefix(10))… 的 Passbook 缓存")
-        onProgress(0.5)
 
-        let writeResult = await attemptFFIWriteAsync(stageDir: stageDir.path, target: target)
+        let writeResult = await attemptFFIWriteAsync(stageDir: stageDir.path, target: target) { completed, total in
+            let span = Phase.ffiEnd - Phase.ffiStart
+            let frac = total > 0 ? Double(completed) / Double(total) : 0
+            let index = total > 0 ? min(completed + 1, total) : completed
+            self.report(onProgress,
+                        Phase.ffiStart + span * frac,
+                        total > 0 ? "正在写入 (\(index)/\(total))…" : "正在写入…")
+        }
         switch writeResult {
         case .failure(let kind):
             record(kind.userMessage, errorKind: kind)
@@ -130,37 +279,71 @@ final class WriteEngine {
             break
         }
 
-        onProgress(0.8)
+        report(onProgress, Phase.invalidating, "正在刷新钱包缓存…")
         onLog("图像已写入，正在失效 FrontFace / Preview / PlaceHolder 缓存")
         invalidateCaches(cardId: cardId)
 
-        onProgress(1.0)
+        report(onProgress, Phase.done, "完成")
         record("卡面写入成功：\(cardId.prefix(10))…（重启钱包后生效）", errorKind: nil)
+    }
+
+    /// 统一切回主线程再回调，消费方可以直接改 UI / 实时活动
+    private func report(_ handler: @escaping WriteProgressHandler, _ fraction: Double, _ stage: String) {
+        if Thread.isMainThread {
+            handler(fraction, stage)
+        } else {
+            DispatchQueue.main.async { handler(fraction, stage) }
+        }
     }
 
     // MARK: 批量写入
 
     /// 全部卡批量写入。返回每张的结果，UI 分别展示成败。
-    func batchWrite(items: [(cardId: String, image: UIImage)],
+    /// `onProgress` 给出**总体**进度（跨卡归一化），供进度条与灵动岛使用。
+    func batchWrite(items: [(cardId: String, label: String, image: UIImage)],
                     onLog: @escaping (String) -> Void,
-                    onProgress: @escaping (Double, Int, Int) -> Void) async -> [(cardId: String, error: WriteErrorKind?)] {
+                    onProgress: @escaping (WriteBatchProgress) -> Void) async -> [(cardId: String, error: WriteErrorKind?)] {
         var results: [(String, WriteErrorKind?)] = []
         let total = items.count
+        var failedCount = 0
 
         for (i, item) in items.enumerated() {
+            let base = Double(i) / Double(max(total, 1))
+            let span = 1.0 / Double(max(total, 1))
+
             do {
                 try await writeCard(
                     cardId: item.cardId, image: item.image,
                     onLog: { onLog("[\(i+1)/\(total)] \($0)") },
-                    onProgress: { onProgress($0, i + 1, total) }
+                    onProgress: { cardFraction, stage in
+                        onProgress(WriteBatchProgress(
+                            fraction: base + span * cardFraction,
+                            stage: stage,
+                            done: i,
+                            total: total,
+                            failed: failedCount,
+                            cardLabel: item.label
+                        ))
+                    }
                 )
                 results.append((item.cardId, nil))
             } catch let kind as WriteErrorKind {
                 results.append((item.cardId, kind))
+                failedCount += 1
             } catch {
                 results.append((item.cardId, .verifyFailed))
+                failedCount += 1
             }
-            onProgress(1, i + 1, total)
+
+            // 收尾：把这张卡补满
+            onProgress(WriteBatchProgress(
+                fraction: Double(i + 1) / Double(max(total, 1)),
+                stage: i + 1 < total ? "第 \(i + 1) 张完成" : "完成",
+                done: i + 1,
+                total: total,
+                failed: failedCount,
+                cardLabel: item.label
+            ))
         }
         return results
     }
@@ -170,47 +353,61 @@ final class WriteEngine {
     private enum FFIResult { case success, failure(WriteErrorKind) }
 
     /// FFI 写入是阻塞调用：放到专用串行队列执行，避免卡死 Swift 协作线程池
-    private func attemptFFIWriteAsync(stageDir: String, target: String) async -> FFIResult {
+    /// - Parameter onFileProgress: (已完成文件数, 总文件数)，从 Rust 日志解析而来
+    private func attemptFFIWriteAsync(stageDir: String,
+                                      target: String,
+                                      onFileProgress: @escaping (Int, Int) -> Void) async -> FFIResult {
         await withCheckedContinuation { cont in
             ffiQueue.async {
-                cont.resume(returning: self.attemptFFIWrite(stageDir: stageDir, target: target))
+                cont.resume(returning: self.attemptFFIWrite(stageDir: stageDir,
+                                                            target: target,
+                                                            onFileProgress: onFileProgress))
             }
         }
     }
 
     private let ffiQueue = DispatchQueue(label: "cc.cardart.workshop.writeengine", qos: .userInitiated)
 
-    private func attemptFFIWrite(stageDir: String, target: String) -> FFIResult {
+    private func attemptFFIWrite(stageDir: String,
+                                 target: String,
+                                 onFileProgress: @escaping (Int, Int) -> Void) -> FFIResult {
         for attempt in 0..<2 {
             let pairingPath = PairingController.pairingFilePath()
             var outError: UnsafeMutablePointer<CChar>?
 
-            // C 回调不可捕获上下文：日志经 context 指针收集
-            let sink = NSMutableString()
-            let sinkPtr = Unmanaged.passRetained(sink).toOpaque()
-            defer { Unmanaged.passUnretained(sink).release() }
+            // C 回调不可捕获上下文：日志 sink + 进度解析器一起放进桥对象，经 context 指针传入
+            let bridge = WriteLogBridge(onFileProgress: onFileProgress)
+            let bridgePtr = Unmanaged.passRetained(bridge).toOpaque()
+            defer { Unmanaged.passUnretained(bridge).release() }
 
             let rc = pairingPath.withCString { pairC in
                 stageDir.withCString { srcC in
                     target.withCString { tgtC in
                         al_exploit_write_dir(pairC, srcC, tgtC, { ctx, msg in
                             guard let ctx, let msg else { return }
-                            Unmanaged<NSMutableString>.fromOpaque(ctx)
+                            Unmanaged<WriteLogBridge>.fromOpaque(ctx)
                                 .takeUnretainedValue()
-                                .append(String(cString: msg))
-                        }, sinkPtr, &outError)
+                                .handle(String(cString: msg))
+                        }, bridgePtr, &outError)
                     }
                 }
             }
 
-            var captured = sink as String
+            var captured = bridge.sink
             if let p = outError {
                 let s = String(cString: p)
                 al_string_free(p)
                 if !s.isEmpty { captured = s }
             }
 
-            if rc == 0 { return .success }
+            if rc == 0 {
+                // 补齐最后一格：成功时 completed 必然等于 total
+                let progress = bridge.progress
+                if progress.total > 0, progress.completed < progress.total {
+                    onFileProgress(progress.total, progress.total)
+                }
+                return .success
+            }
 
             let kind = classify(captured)
             // 隧道断开 / 校验失败允许一次重试；配对失效 / 路径不存在不重试
@@ -365,6 +562,52 @@ final class WriteEngine {
     private func saveLogs() {
         guard let data = try? JSONEncoder().encode(logs) else { return }
         try? data.write(to: logFile, options: .atomic)
+    }
+}
+
+// MARK: - 写入日志 / 进度桥（C 回调上下文对象）
+//
+// 一次 FFI 写入里同时要干两件事：把日志攒起来做错误分类，以及解析文件级进度。
+// 两者都从同一条 C 回调来，所以合并成一个桥对象。
+// 回调由 Rust 侧触发（可能落在 tokio 工作线程上），因此这里加锁保护，
+// 不依赖「回调一定串行」这个隐含前提。
+
+private final class WriteLogBridge {
+    private let lock = NSLock()
+    private let sinkStorage = NSMutableString()
+    private var parserStorage = FFIProgressParser()
+
+    private let onFileProgress: (Int, Int) -> Void
+    private var lastReported = -1
+
+    init(onFileProgress: @escaping (Int, Int) -> Void) {
+        self.onFileProgress = onFileProgress
+    }
+
+    /// 完整日志（供错误分类使用）
+    var sink: String {
+        lock.lock(); defer { lock.unlock() }
+        return sinkStorage as String
+    }
+
+    /// 当前解析到的进度
+    var progress: (completed: Int, total: Int) {
+        lock.lock(); defer { lock.unlock() }
+        return (parserStorage.completed, parserStorage.total)
+    }
+
+    func handle(_ text: String) {
+        lock.lock()
+        sinkStorage.append(text)
+        let changed = parserStorage.consume(text)
+        let completed = parserStorage.completed
+        let total = parserStorage.total
+        let shouldReport = changed && completed != lastReported
+        if shouldReport { lastReported = completed }
+        lock.unlock()
+
+        // 锁外回调，避免下游（切主线程）持锁
+        if shouldReport { onFileProgress(completed, total) }
     }
 }
 

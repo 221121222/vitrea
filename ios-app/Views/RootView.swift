@@ -11,6 +11,8 @@ import SwiftUI
 struct RootView: View {
     @EnvironmentObject var model: AppModel
     @Environment(\.scenePhase) private var scenePhase
+    /// 快捷指令「随机卡面」的自动应用通道（这里常驻订阅，早于闸门挂载也能收到）
+    @StateObject private var inbox = RandomCardInbox.shared
 
     var body: some View {
         ZStack {
@@ -37,6 +39,12 @@ struct RootView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { model.refreshStatus() }
+        }
+        // 快捷指令「随机卡面」：已下好原图 → 进写入面板自动应用并退回后台
+        .onReceive(inbox.$autoApply) { payload in
+            guard let (card, image) = payload else { return }
+            model.requestWrite(card: card, image: image, autoStart: true)
+            inbox.autoApply = nil
         }
     }
 }

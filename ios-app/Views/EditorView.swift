@@ -149,8 +149,15 @@ struct EditorView: View {
                     if let onDismiss { onDismiss() } else { dismiss() }
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.title3).foregroundColor(.secondary)
+                        .font(.title3)
+                        .foregroundColor(.secondary)
+                        // 热区放大到约 40pt：之前只有图标本身那么大，不太好点中
+                        .padding(9)
+                        .contentShape(Rectangle())
                 }
+                // 默认按钮样式会把图标染成强调色，这里压成原样
+                .buttonStyle(.plain)
+                .accessibilityLabel("关闭")
             }
             Text(editing != nil ? "编辑卡面" : "制作卡面")
                 .font(.headline)

@@ -1,6 +1,6 @@
 # 签名与安装指引 / Signing & Installation Guide
 
-Release 页面提供的 `Vitrea.ipa` 是**未签名包**。它在打包时已剥离 `_CodeSignature/` 与 `embedded.mobileprovision`，因此**无法直接安装**，必须先用自己的证书重签。
+Release 页面提供的 `Vitrea.ipa` 是**未签名包**。它在打包时已剥离 `embedded.mobileprovision`，并做了一次 **ad-hoc 签名**（仅用于把内置回环所需的 `NetworkExtension` 权限带在包里，重签时会被你的证书替换），因此**无法直接安装**，必须先用自己的证书重签。
 
 本文档说明常见的几种自签与安装方式。
 
@@ -13,7 +13,7 @@ Release 页面提供的 `Vitrea.ipa` 是**未签名包**。它在打包时已剥
 | Bundle ID | `cc.cardart.workshop`（重签时可自定义，但需保证唯一） |
 | 支持系统 | **iOS 26.0 – 26.6**，或 **iOS 27 beta 1 – beta 4** |
 | 设备 | 仅 **arm64 真机**，不支持模拟器 |
-| 必要依赖 | [LocalDevVPN](https://github.com/SiamSadik/LocalDevVPN)，用于建立 `10.7.0.1` 本地回环隧道 |
+| 必要依赖 | 无（回环隧道已内置）。仅在自签剥掉了 `NetworkExtension` 权限时才需要 [LocalDevVPN](https://github.com/SiamSadik/LocalDevVPN) 作为退路 |
 
 > [!WARNING]
 > 请**不要**把 IPA 交给任何第三方代签服务，也不要使用来源不明的企业证书。企业证书随时可能被吊销，并可能带来隐私风险。
@@ -53,20 +53,38 @@ Release 页面提供的 `Vitrea.ipa` 是**未签名包**。它在打包时已剥
 
 ---
 
-## 5. 安装 LocalDevVPN（必需）
+## 5. 回环隧道（已内置，通常无需额外操作）
 
-Vitrea 的写入功能依赖本机回环隧道，安装完 App 后还需要：
+Vitrea 的写入 / 清理 / 壁纸注入都依赖一条「能连回本机 `lockdownd`」的隧道。这条隧道**已内置**在 App 里（`VitreaTunnel.appex`，Packet Tunnel Provider）：
 
-1. 安装 **LocalDevVPN**。
-2. 打开它，启动 VPN 隧道（状态栏出现 VPN 图标）。
-3. 回到 Vitrea，在配对页完成与本机的开发者配对。
-4. 配对成功后再进行卡面写入。
+1. 打开 Vitrea，配对页会显示「启动内置回环」，点一下即可（首次会弹一次系统 VPN 授权，需 Face ID / 密码确认）。
+2. 隧道连上后进入配对流程。
+3. 之后每次进 App 会自动拉起，不用重复操作。
 
 若写入时提示连接失败，请先确认：
 
-- LocalDevVPN 隧道处于**已连接**状态；
+- 配对页里隧道状态为**已连接**（或系统「设置 → 通用 → VPN与设备管理」里有 `Vitrea 内置回环` 且已连接）；
 - Vitrea 已获得**本地网络**权限（设置 → 隐私与安全性 → 本地网络）；
 - 设备未处于飞行模式。
+
+### 5.1 内置回环不可用时（退路）
+
+内置回环需要 `NetworkExtension` 权限。**部分自签方式会把这个权限剥掉**，此时 App 会自动检测到并在配对页显示：
+
+> 内置回环不可用（当前签名未包含 NetworkExtension 权限）。请改用 LocalDevVPN。
+
+遇到这种情况：
+
+1. 从 App Store 安装 **LocalDevVPN**（或使用其 AltStore 源）。
+2. 打开它，启动 VPN 隧道（状态栏出现 VPN 图标）。
+3. 回到 Vitrea，点「打开 LocalDevVPN」→ 等待隧道连上 → 继续配对。
+
+> [!TIP]
+> 用 AltStore / SideStore 安装时选择 **「Keep App Extensions (Use Main Profile)」**，只占用 1 个 App ID，扩展的权限也更容易保留。
+>
+> 想自己确认权限是否写进包里，可在电脑上执行：
+> `codesign -d --entitlements :- Vitrea.app/PlugIns/VitreaTunnel.appex`
+> 应能看到 `com.apple.developer.networking.networkextension → packet-tunnel-provider`。
 
 ---
 

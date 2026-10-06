@@ -8,8 +8,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "1.0.0"
-    CURRENT_PROJECT_VERSION: "1.0.0"
+    MARKETING_VERSION: "1.1"
+    CURRENT_PROJECT_VERSION: "1.1"
     TARGETED_DEVICE_FAMILY: "1"
     # AirliftFFI 为 arm64（aws-lc-rs / idevice），排除模拟器 x86_64
     EXCLUDED_ARCHS[sdk=iphonesimulator*]: x86_64
@@ -24,30 +24,80 @@ targets:
       - path: ios-app
         excludes:
           - "Resources/**"
+          - "Vitrea.entitlements"
       # 仅嵌入素材清单 JSON（~800KB），素材图全部在线加载
       - path: ios-app/Resources/Manifests
         type: folder
       - path: ios-app/Resources/credits
         type: folder
+      # 键盘主题预览图（内置，避免每次从 GitHub 拉取）
+      - path: ios-app/Resources/PasscodePreviews
+        type: folder
+      # 键盘主题包本体 + 内置清单（.passthm，离线可用）
+      - path: ios-app/Resources/PasscodeThemes
+        type: folder
     dependencies:
       - framework: AirliftFFI.xcframework
         embed: false
+      # 内置回环隧道扩展 → 打进 Vitrea.app/PlugIns/
+      - target: VitreaTunnel
+        embed: true
+      # 实时活动（灵动岛写入进度）→ 打进 Vitrea.app/PlugIns/
+      - target: VitreaWidgets
+        embed: true
     settings:
       base:
         PRODUCT_NAME: "Vitrea"
         PRODUCT_BUNDLE_IDENTIFIER: cc.cardart.workshop
         INFOPLIST_FILE: ios-app/Info.plist
+        CODE_SIGN_ENTITLEMENTS: ios-app/Vitrea.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # 没有这个设置时 Color.accentColor 会退化成系统灰，主按钮看起来像禁用
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         # idevice 静态库引入 C++ 符号（aws-lc）
         OTHER_LDFLAGS: "-lc++"
         GENERATE_INFOPLIST_FILE: NO
+
+  # 内置回环：Packet Tunnel Provider 扩展
+  VitreaTunnel:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: TunnelProv
+        excludes:
+          - "TunnelProv.entitlements"
+          - "Info.plist"
+    settings:
+      base:
+        PRODUCT_NAME: "VitreaTunnel"
+        PRODUCT_BUNDLE_IDENTIFIER: cc.cardart.workshop.tunnel
+        INFOPLIST_FILE: TunnelProv/Info.plist
+        CODE_SIGN_ENTITLEMENTS: TunnelProv/TunnelProv.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+
+  # 实时活动：写入卡面进度显示在灵动岛 / 锁屏
+  # 与主 App 共用 ios-app/Shared/WriteActivityAttributes.swift（类型必须两边一致）
+  VitreaWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: VitreaWidgets
+        excludes:
+          - "Info.plist"
+      - path: ios-app/Shared
+    settings:
+      base:
+        PRODUCT_NAME: "VitreaWidgets"
+        PRODUCT_BUNDLE_IDENTIFIER: cc.cardart.workshop.widgets
+        INFOPLIST_FILE: VitreaWidgets/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
 
 schemes:
   Vitrea:
     build:
       targets:
         Vitrea: all
-    run:
-      config: Debug
     archive:
       config: Release

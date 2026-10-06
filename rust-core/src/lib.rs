@@ -363,6 +363,109 @@ pub unsafe extern "C" fn al_find_app_container(
     }
 }
 
+// ---------------------------------------------------------------------------
+// 跨容器清理（HouseArrest + AFC）
+// ---------------------------------------------------------------------------
+
+/// 枚举设备上的应用，JSON 数组写入 out_json（调用方用 al_string_free 释放）。
+/// 元素字段：bundleID / name / container / type / version。返回 0 表示成功。
+#[no_mangle]
+pub unsafe extern "C" fn al_container_list_apps(
+    pairing_path: *const c_char,
+    log_cb: exploit::ALLogCallback,
+    ctx: *mut c_void,
+    out_json: *mut *mut c_char,
+    out_error: *mut *mut c_char,
+) -> i32 {
+    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        exploit::list_apps(pairing_path, log_cb, ctx, out_json, out_error)
+    }));
+    match res {
+        Ok(rc) => rc,
+        Err(e) => {
+            if !out_error.is_null() {
+                *out_error = ffi_util::cstr(format!("Rust panic in al_container_list_apps: {e:?}"));
+            }
+            1
+        }
+    }
+}
+
+/// 统计某个 App 容器里 Library/Caches 与 tmp 的体积。
+/// JSON 写入 out_json：bundleID / bytes / items。返回 0 表示成功。
+#[no_mangle]
+pub unsafe extern "C" fn al_container_usage(
+    pairing_path: *const c_char,
+    bundle_id: *const c_char,
+    log_cb: exploit::ALLogCallback,
+    ctx: *mut c_void,
+    out_json: *mut *mut c_char,
+    out_error: *mut *mut c_char,
+) -> i32 {
+    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        exploit::container_usage(pairing_path, bundle_id, log_cb, ctx, out_json, out_error)
+    }));
+    match res {
+        Ok(rc) => rc,
+        Err(e) => {
+            if !out_error.is_null() {
+                *out_error = ffi_util::cstr(format!("Rust panic in al_container_usage: {e:?}"));
+            }
+            1
+        }
+    }
+}
+
+/// 清理某个 App 容器的 Library/Caches 与 tmp（只删目录内容，目录本身保留）。
+/// JSON 写入 out_json：bundleID / freedBytes / removed / failed。返回 0 表示成功。
+#[no_mangle]
+pub unsafe extern "C" fn al_container_clean(
+    pairing_path: *const c_char,
+    bundle_id: *const c_char,
+    log_cb: exploit::ALLogCallback,
+    ctx: *mut c_void,
+    out_json: *mut *mut c_char,
+    out_error: *mut *mut c_char,
+) -> i32 {
+    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        exploit::container_clean(pairing_path, bundle_id, log_cb, ctx, out_json, out_error)
+    }));
+    match res {
+        Ok(rc) => rc,
+        Err(e) => {
+            if !out_error.is_null() {
+                *out_error = ffi_util::cstr(format!("Rust panic in al_container_clean: {e:?}"));
+            }
+            1
+        }
+    }
+}
+
+/// 批量统计多个 App 容器（bundle_ids 用逗号分隔），复用同一条隧道，比逐个调用快得多。
+/// JSON 写入 out_json：数组 [{ bundleID, bytes, items, error? }]。返回 0 表示成功。
+#[no_mangle]
+pub unsafe extern "C" fn al_container_scan_many(
+    pairing_path: *const c_char,
+    bundle_ids: *const c_char,
+    log_cb: exploit::ALLogCallback,
+    ctx: *mut c_void,
+    out_json: *mut *mut c_char,
+    out_error: *mut *mut c_char,
+) -> i32 {
+    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        exploit::container_scan_many(pairing_path, bundle_ids, log_cb, ctx, out_json, out_error)
+    }));
+    match res {
+        Ok(rc) => rc,
+        Err(e) => {
+            if !out_error.is_null() {
+                *out_error = ffi_util::cstr(format!("Rust panic in al_container_scan_many: {e:?}"));
+            }
+            1
+        }
+    }
+}
+
 /// Trigger device restart / respring via Diagnostics Relay over the pairing tunnel.
 /// Returns 0 on success, 1 on error.
 #[no_mangle]

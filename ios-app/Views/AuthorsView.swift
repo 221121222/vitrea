@@ -2,19 +2,37 @@
 //  AuthorsView.swift
 //  Vitrea
 //
-//  作者页：矜火（构想与 Bug 修复）/ Lucky（制作与构建）。
+//  作者页：顶部是交流群入口，下面才是矜火（构想与 Bug 修复）/ Lucky（制作与构建）。
 //  仅通过底栏 Tab 进入。
 //
 
 import SwiftUI
 
 struct AuthorsView: View {
+
     private static let qq = "3568798288"
+
+    /// Vitrea 交流群（QQ 群 862491980）的分享链接。
+    /// 打开后 QQ 的 H5 页面会引导进群；没装 QQ 会落到浏览器。
+    private static let communityURL =
+        "https://qun.qq.com/universal-share/share?ac=1"
+        + "&authKey=lZCIe7g%2B8640MKOem%2FqX94jFSg4KX%2BM9tzZCE5Pz7Cyd4Jzt7LkUXvfANziZFrKq"
+        + "&busi_data=eyJncm91cENvZGUiOiI4NjI0OTE5ODAiLCJ0b2tlbiI6ImRsSUFleXI5dWFpWGJ5RG82dWlIUVpmSVNQeFdRa3ZIV3dMbHkvNVJVVUtHVU1PamtSSE4vV3hFdERucHpQWk8iLCJ1aW4iOiIzNTY4Nzk4Mjg4In0%3D"
+        + "&data=d_4koFsDWx0yMkCvQrNRFT_oZE1JO-MBFoJY8JfBDgtOLjwSsjRdKz9_uMXXdiCuEZfby1mDSe8Iy24P0CaceQ"
+        + "&svctype=4&tempid=h5_group_info"
+
+    /// 群号（从上面的 busi_data 解出来的，写死一份便于用户手动搜索）
+    private static let communityGroupCode = "862491980"
+
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 18) {
+                    // 交流群放在最上方
+                    communityEntry
+
                     HStack(spacing: 12) {
                         compactAuthorCard(
                             image: "jinhuo",
@@ -39,6 +57,38 @@ struct AuthorsView: View {
             .navigationTitle("作者")
             .navigationBarTitleDisplayMode(.inline)
         }
+    }
+
+    // MARK: 交流群入口
+
+    private var communityEntry: some View {
+        Button {
+            guard let url = URL(string: Self.communityURL) else { return }
+            openURL(url)
+        } label: {
+            // 直接用 QQ 群分享图作入口，更直观
+            Image("CommunityBanner")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(maxWidth: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay(alignment: .trailing) {
+                    Image(systemName: "chevron.right")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 28, height: 28)
+                        .background(Circle().fill(.black.opacity(0.32)))
+                        .padding(10)
+                }
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
+                )
+                .shadow(color: .black.opacity(0.08), radius: 10, y: 4)
+                .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("加入 Vitrea 交流群，QQ 群 \(Self.communityGroupCode)")
     }
 
     private func compactAuthorCard(image: String, name: String, role: String, qq: String?) -> some View {
@@ -111,6 +161,7 @@ struct AuthorsView: View {
             noticeCard(icon: "link.circle.fill", tint: .pink,
                        title: "素材来源",
                        content: "本应用所有卡面素材均出自于 cardart.cc 网站，如有侵权，请联系作者。")
+            // 「壁纸库」声明已在 v1.3.0 移除壁纸功能时一并删除
         }
     }
 

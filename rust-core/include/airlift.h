@@ -110,6 +110,48 @@ int32_t al_exploit_inject_folder(const char *pairing_path,
                                  char **out_error);
 
 // ---------------------------------------------------------------------------
+// Cross-Container Cleaner (HouseArrest + AFC)
+// ---------------------------------------------------------------------------
+
+// Enumerate installed applications over InstallationProxy.
+// `out_json` receives a JSON array of { bundleID, name, container, type, version }.
+// Returns 0 on success, 1 on error (with out_error set).
+int32_t al_container_list_apps(const char *pairing_path,
+                               ALLogCallback log_cb,
+                               void *ctx,
+                               char **out_json,
+                               char **out_error);
+
+// Measure the reclaimable size of one app container (Library/Caches + tmp).
+// `out_json` receives { bundleID, bytes, items }. Returns 0 on success.
+int32_t al_container_usage(const char *pairing_path,
+                           const char *bundle_id,
+                           ALLogCallback log_cb,
+                           void *ctx,
+                           char **out_json,
+                           char **out_error);
+
+// Delete the contents of Library/Caches and tmp inside one app container.
+// The directories themselves are kept. `out_json` receives
+// { bundleID, freedBytes, removed, failed }. Returns 0 on success.
+int32_t al_container_clean(const char *pairing_path,
+                           const char *bundle_id,
+                           ALLogCallback log_cb,
+                           void *ctx,
+                           char **out_json,
+                           char **out_error);
+
+// Batch-measure several app containers in one tunnel session (bundle ids separated by commas).
+// `out_json` receives an array of { bundleID, bytes, items, error? }.
+// Much faster than calling al_container_usage once per app. Returns 0 on success.
+int32_t al_container_scan_many(const char *pairing_path,
+                               const char *bundle_ids,
+                               ALLogCallback log_cb,
+                               void *ctx,
+                               char **out_json,
+                               char **out_error);
+
+// ---------------------------------------------------------------------------
 // Syslog Stream / Live Card Detection
 // ---------------------------------------------------------------------------
 

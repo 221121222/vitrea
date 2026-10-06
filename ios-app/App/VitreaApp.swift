@@ -26,7 +26,11 @@ struct VitreaApp: App {
             RootView()
                 .environmentObject(model)
                 .preferredColorScheme(nil)   // 深 / 浅双套均生效
-                .onAppear { model.startupProbe() }
+                .onAppear {
+                    model.startupProbe()
+                    // 上次写入如果被系统杀掉，实时活动会残留在灵动岛 —— 启动时清掉
+                    WriteActivityController.shared.endStale()
+                }
         }
     }
 }

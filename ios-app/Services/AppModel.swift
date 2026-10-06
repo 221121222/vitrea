@@ -19,6 +19,8 @@ struct WriteContext: Identifiable {
     let sourceTitle: String
     let sourceAuthor: String?      // 原作者署名
     let targets: [WalletCard]?     // nil 时在写入面板里选目标
+    /// 快捷指令「随机卡面」触发：进面板后自动开始写入并退回后台（写入靠 BackgroundKeeper 续命）
+    let autoStart: Bool
 }
 
 @MainActor
@@ -48,6 +50,11 @@ final class AppModel: ObservableObject {
     @Published var searchResults: [GalleryCard] = []
     @Published var isSearching = false
     @Published var searchMode = false
+    /// 当前结果是「分类浏览」来的（点交通卡 / 身份证 / 银行卡）而不是关键词搜索。
+    /// 用来决定搜索框右侧要不要显示清除按钮 —— 分类浏览时不该出现那个叉。
+    @Published var exploreMode = false
+    /// 分类浏览当前用的筛选串，便于下拉刷新时重新拉同一类
+    @Published var exploreFilter: String?
 
     // MARK: 精选
 
@@ -235,6 +242,8 @@ final class AppModel: ObservableObject {
         guard !keyword.isEmpty else { return }
         isSearching = true
         searchMode = true
+        exploreMode = false
+        exploreFilter = nil
 
         Task {
             do {
@@ -250,6 +259,8 @@ final class AppModel: ObservableObject {
 
     func exitSearch() {
         searchMode = false
+        exploreMode = false
+        exploreFilter = nil
         searchText = ""
         searchResults = []
     }
@@ -258,6 +269,8 @@ final class AppModel: ObservableObject {
     func loadExplore(filter: String) {
         isSearching = true
         searchMode = true
+        exploreMode = true
+        exploreFilter = filter
         Task {
             do {
                 let results = try await CardArtAPI.shared.exploreCards(filter: filter)
@@ -315,21 +328,23 @@ final class AppModel: ObservableObject {
 
     // MARK: 发起写入
 
-    func requestWrite(card: GalleryCard, image: UIImage) {
+    func requestWrite(card: GalleryCard, image: UIImage, autoStart: Bool = false) {
         writeContext = WriteContext(
             image: image,
             sourceTitle: card.displayTitle,
             sourceAuthor: card.authorName,
-            targets: nil
+            targets: nil,
+            autoStart: autoStart
         )
     }
 
-    func requestWrite(editorImage: UIImage, title: String) {
+    func requestWrite(editorImage: UIImage, title: String, autoStart: Bool = false) {
         writeContext = WriteContext(
             image: editorImage,
             sourceTitle: title,
             sourceAuthor: nil,    // 自制卡面
-            targets: nil
+            targets: nil,
+            autoStart: autoStart
         )
     }
 

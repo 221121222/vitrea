@@ -24,6 +24,8 @@ idevice = { git = "https://github.com/jkcoxson/idevice.git", rev = "7bd551c16c6d
   "usbmuxd",
   "syslog_relay",
   "installation_proxy",
+  # 跨应用清理：com.apple.mobile.house_arrest（VendContainer）+ AFC 列举 / 删除
+  "house_arrest",
 ] }
 
 # idevice-ffi for tunnel_create_rppairing + AFC C FFI (re-exports its #[no_mangle] symbols).

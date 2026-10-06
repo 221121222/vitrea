@@ -125,26 +125,38 @@ struct GlassButton: View {
                 Text(title)
                     .fontWeight(.semibold)
             }
-            .foregroundColor(style == .primary ? .white : .primary)
+            .foregroundColor(foreground)
             .padding(.horizontal, 20)
             .padding(.vertical, 13)
             .frame(maxWidth: fullWidth ? .infinity : nil)
-            .background(
-                Group {
-                    if style == .primary {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(Color.accentColor)
-                    } else {
-                        GlassContainer(tier: style.tier, cornerRadius: 14, showsShadow: false) {
-                            Color.clear
-                        }
-                    }
-                }
+            .background(background)
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(enabled ? 0 : 0.12), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
-        .opacity(enabled ? 1 : 0.45)
+    }
+
+    /// 禁用时不要把品牌色整体降透明度（那会变成一坨"灰按钮"），
+    /// 而是换成中性底 + 次要文字，一眼能看出是「还没满足条件」而不是「坏了」。
+    private var foreground: Color {
+        if !enabled { return .secondary }
+        return style == .primary ? .white : .primary
+    }
+
+    @ViewBuilder
+    private var background: some View {
+        if style == .primary {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(enabled ? Color.accentColor : Color.primary.opacity(0.08))
+        } else {
+            GlassContainer(tier: style.tier, cornerRadius: 14, showsShadow: false) {
+                Color.clear
+            }
+            .opacity(enabled ? 1 : 0.6)
+        }
     }
 }
 

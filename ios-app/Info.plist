@@ -29,6 +29,20 @@
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- 随机卡面：小组件点击 → vitrea://card?d=… 打开对应卡面详情 -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>cc.cardart.workshop.randomcard</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>vitrea</string>
+			</array>
+		</dict>
+	</array>
 	<!-- RPPairing 本机配对广播 -->
 	<key>NSBonjourServices</key>
 	<array>
@@ -39,6 +53,11 @@
 	<string>Vitrea 需要广播本机配对服务，让这台 iPhone 与自身完成开发者配对，并连接本地 lockdown 服务写入卡面缓存。</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Vitrea 需要读取相册图片，用于制作 Apple Wallet 卡面。</string>
+	<!-- 写入卡面时把进度显示在灵动岛 / 锁屏（Live Activity） -->
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
+	<true/>
 	<!-- 配对期间在设置里输 PIN，需要音频保活 -->
 	<key>UIBackgroundModes</key>
 	<array>
@@ -59,8 +78,41 @@
 	</array>
 	<key>UIRequiresFullScreen</key>
 	<true/>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>cc.cardart.passthm</string>
+			<key>UTTypeDescription</key>
+			<string>Passcode Theme</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.archive</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>passthm</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
 	<key>CFBundleDocumentTypes</key>
 	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Passcode Theme</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>cc.cardart.passthm</string>
+			</array>
+		</dict>
 		<dict>
 			<key>CFBundleTypeName</key>
 			<string>Pairing File</string>
