@@ -1,0 +1,87 @@
+[
+  {
+    "id": "gold",
+    "name": { "zh": "金色", "en": "Gold" },
+    "type": "linearGradient",
+    "base": "#C9A96E",
+    "angle": 180,
+    "stops": [
+      { "position": 0.00, "hex": "#957434" },
+      { "position": 0.06, "hex": "#8A6A2D" },
+      { "position": 0.30, "hex": "#CFAE68" },
+      { "position": 0.50, "hex": "#F7E4AE" },
+      { "position": 0.56, "hex": "#FFF5D6" },
+      { "position": 0.62, "hex": "#DAB974" },
+      { "position": 0.69, "hex": "#EFD698" },
+      { "position": 0.80, "hex": "#DDBF7A" },
+      { "position": 1.00, "hex": "#7E5F28" }
+    ]
+  },
+  {
+    "id": "silver",
+    "name": { "zh": "银色", "en": "Silver" },
+    "type": "linearGradient",
+    "base": "#AFAFB0",
+    "angle": 180,
+    "stops": [
+      { "position": 0.00, "hex": "#8D8F93" },
+      { "position": 0.06, "hex": "#84868A" },
+      { "position": 0.30, "hex": "#C5C7CB" },
+      { "position": 0.50, "hex": "#F6F7F9" },
+      { "position": 0.56, "hex": "#FFFFFF" },
+      { "position": 0.62, "hex": "#DADCDF" },
+      { "position": 0.69, "hex": "#EEEFF1" },
+      { "position": 0.80, "hex": "#DFE0E3" },
+      { "position": 1.00, "hex": "#808286" }
+    ]
+  },
+  {
+    "id": "roseGold",
+    "name": { "zh": "玫瑰金", "en": "Rose Gold" },
+    "type": "linearGradient",
+    "base": "#C99586",
+    "angle": 180,
+    "stops": [
+      { "position": 0.00, "hex": "#94604F" },
+      { "position": 0.06, "hex": "#8A5747" },
+      { "position": 0.30, "hex": "#CE9A8A" },
+      { "position": 0.50, "hex": "#F6D6CA" },
+      { "position": 0.56, "hex": "#FFEBE3" },
+      { "position": 0.62, "hex": "#D8A393" },
+      { "position": 0.69, "hex": "#EFC6B7" },
+      { "position": 0.80, "hex": "#DDB0A0" },
+      { "position": 1.00, "hex": "#7F4E40" }
+    ]
+  },
+  {
+    "id": "holo",
+    "name": { "zh": "镭射全息", "en": "Holographic" },
+    "type": "holographic",
+    "base": "#C9C4EE",
+    "angle": 115,
+    "stops": [
+      { "position": 0.0, "hex": "#F4A9CF" },
+      { "position": 1.0, "hex": "#DDAAF4" }
+    ],
+    "rainbowStops": [
+      { "position": 0.000, "hex": "#F4A9CF" },
+      { "position": 0.1667, "hex": "#C3AEF6" },
+      { "position": 0.3333, "hex": "#94D3F4" },
+      { "position": 0.5000, "hex": "#A9EFCF" },
+      { "position": 0.6667, "hex": "#F4EBA2" },
+      { "position": 0.8333, "hex": "#F6BFA4" },
+      { "position": 1.0000, "hex": "#DDAAF4" }
+    ],
+    "shine": {
+      "description": "diagonal white sheen gradient composited with source-atop, direction top-right to bottom-left",
+      "stops": [
+        { "position": 0.00, "alpha": 0.00 },
+        { "position": 0.30, "alpha": 0.45 },
+        { "position": 0.42, "alpha": 0.00 },
+        { "position": 0.62, "alpha": 0.35 },
+        { "position": 0.75, "alpha": 0.00 },
+        { "position": 1.00, "alpha": 0.25 }
+      ]
+    }
+  }
+]

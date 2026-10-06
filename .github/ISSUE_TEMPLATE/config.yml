@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 📖 签名与安装指引
+    url: https://github.com/OWNER/vitrea/blob/main/docs/INSTALL.md
+    about: 安装 IPA 前请先阅读签名与安装说明
+  - name: 💬 联系作者
+    url: https://github.com/ksjinhuo
+    about: 应用内 Bug 也可通过 QQ 3568798288 联系作者
