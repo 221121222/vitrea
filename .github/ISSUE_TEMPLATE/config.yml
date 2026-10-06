@@ -1,7 +1,7 @@
 blank_issues_enabled: true
 contact_links:
   - name: 📖 签名与安装指引
-    url: https://github.com/OWNER/vitrea/blob/main/docs/INSTALL.md
+    url: https://github.com/221121222/vitrea/blob/main/docs/INSTALL.md
     about: 安装 IPA 前请先阅读签名与安装说明
   - name: 💬 联系作者
     url: https://github.com/ksjinhuo

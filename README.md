@@ -31,7 +31,7 @@
 整个写入过程**在设备上完成**：App 通过本地回环隧道（`10.7.0.1` / `127.0.0.1`，由 LocalDevVPN 提供）与本机系统服务通信，实际的文件操作由 `AirliftFFI`（`rust-core/`）负责。全程**不越狱、不访问 Secure Enclave、不读取或修改任何支付凭据**，只替换 Wallet 的图像缓存文件。
 
 > [!IMPORTANT]
-> **兼容性**：Vitrea 需要 **iOS 18.0 或更高版本**，且必须配合 [LocalDevVPN](https://github.com/OWNER/localdevvpn) 建立本地回环隧道才能完成写入。
+> **兼容性**：Vitrea 需要 **iOS 18.0 或更高版本**，且必须配合 [LocalDevVPN](https://github.com/SiamSadik/LocalDevVPN) 建立本地回环隧道才能完成写入。
 
 ## 功能特性 / Features
 
@@ -88,7 +88,7 @@
 | 开发工具 | Xcode 16+ / Swift 5.0 |
 | 工程生成 | [XcodeGen](https://github.com/yonaskolb/XcodeGen)（`brew install xcodegen`） |
 | Rust 工具链 | `rustup` + `aarch64-apple-ios`、`aarch64-apple-ios-sim` |
-| 依赖 | [LocalDevVPN](https://github.com/OWNER/localdevvpn)（写入时提供本地回环隧道） |
+| 依赖 | [LocalDevVPN](https://github.com/SiamSadik/LocalDevVPN)（写入时提供本地回环隧道） |
 
 ## 安装 / Installation
 
@@ -108,7 +108,7 @@
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/<owner>/vitrea.git
+git clone https://github.com/221121222/vitrea.git
 cd vitrea
 
 # 2. 构建 Rust 静态库并打包 AirliftFFI.xcframework
@@ -198,9 +198,10 @@ xcodegen generate
 
 ## 致谢 / Acknowledgements
 
-- **[AirCard-iOS](https://github.com/OWNER/AirCard-iOS)** —— Vitrea 的写入链路与 `AirliftFFI` 源自该项目（MIT），感谢原作者 *Johnny Franks* 的开源工作。
+- **[AirCard-iOS](https://github.com/Mak5er/AirCard-iOS)** —— Vitrea 的写入链路与 `AirliftFFI` 源自该项目（MIT），感谢原作者 **[@mak5er](https://github.com/mak5er)** 与 **[@merybist](https://github.com/merybist)** 的开源工作。
+- **[AirLift](https://github.com/0xjohnnydev/airlift)** by **[@0xjohnnydev](https://github.com/0xjohnnydev)** —— `AirliftFFI` 底层依赖的 AirTraffic / ATAirlock 沙盒逃逸研究。
 - **[cardart.cc](https://cardart.cc)** —— 卡面素材来源，素材版权归原作者所有。
-- **[LocalDevVPN](https://github.com/OWNER/localdevvpn)** —— 提供本地回环隧道。
+- **[LocalDevVPN](https://github.com/SiamSadik/LocalDevVPN)** —— 提供本地回环隧道。
 - **[XcodeGen](https://github.com/yonaskolb/XcodeGen)** —— 工程文件生成。
 
 ## 许可 / License

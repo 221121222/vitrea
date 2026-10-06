@@ -13,7 +13,7 @@ Release 页面提供的 `Vitrea.ipa` 是**未签名包**。它在打包时已剥
 | Bundle ID | `cc.cardart.workshop`（重签时可自定义，但需保证唯一） |
 | 最低系统 | iOS 18.0 |
 | 设备 | 仅 **arm64 真机**，不支持模拟器 |
-| 必要依赖 | [LocalDevVPN](https://github.com/OWNER/localdevvpn)，用于建立 `10.7.0.1` 本地回环隧道 |
+| 必要依赖 | [LocalDevVPN](https://github.com/SiamSadik/LocalDevVPN)，用于建立 `10.7.0.1` 本地回环隧道 |
 
 > [!WARNING]
 > 请**不要**把 IPA 交给任何第三方代签服务，也不要使用来源不明的企业证书。企业证书随时可能被吊销，并可能带来隐私风险。
@@ -73,7 +73,7 @@ Vitrea 的写入功能依赖本机回环隧道，安装完 App 后还需要：
 如果你有自己的开发者证书，可以直接用 Xcode 构建并签名，无需上面的重签流程：
 
 ```bash
-git clone https://github.com/<owner>/vitrea.git
+git clone https://github.com/221121222/vitrea.git
 cd vitrea
 ./build-ios.sh
 brew install xcodegen && xcodegen generate

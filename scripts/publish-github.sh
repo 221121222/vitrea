@@ -27,7 +27,9 @@ COLLABORATORS="${COLLABORATORS:-ksjinhuo}"
 API="https://api.github.com"
 AUTH=(-H "Authorization: Bearer ${GITHUB_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28")
 
-VERSION="$(grep -E '^\s+MARKETING_VERSION:' project.yml | head -1 | sed -E 's/.*"([^"]+)".*/\1/')"
+# 注意：macOS 自带的是 BSD grep，不支持 \s，这里用 POSIX 字符类
+VERSION="$(sed -nE 's/^[[:space:]]*MARKETING_VERSION:[[:space:]]*"([^"]+)".*/\1/p' project.yml | head -1)"
+[ -n "$VERSION" ] || VERSION="1.0.0"
 RELEASE_TAG="${RELEASE_TAG:-v${VERSION}}"
 IPA="build/Vitrea.ipa"
 

@@ -2,7 +2,6 @@ name: Build IPA
 
 on:
   push:
-    branches: [main]
     tags: ['v*']
   pull_request:
     branches: [main]
@@ -33,6 +32,8 @@ jobs:
 
       - name: Build AirliftFFI.xcframework
         run: ./build-ios.sh
+        env:
+          DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
 
       - name: Generate Xcode project
         run: xcodegen generate
